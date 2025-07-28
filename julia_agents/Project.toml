@@ -1,0 +1,4 @@
+[deps]
+HTTP = "086731a9-442a-5794-b11b-af3c4c8332a2"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+DotEnv = "e6da8522-3c48-4433-a635-128a3a31c5b4"

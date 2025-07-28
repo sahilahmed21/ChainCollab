@@ -28,23 +28,19 @@ const io = new Server(server, {
 });
 
 // --- Agent Service Helper ---
-/**
- * A centralized function to call any Julia agent.
- * @param {string} agentName - The name of the agent to invoke (e.g., 'onchain_scribe').
- * @param {object} payload - The data to send to the agent.
- * @returns {Promise<object>} - The response data from the agent or an error object.
- */
 const invokeAgent = async (agentName, payload) => {
     console.log(`Invoking agent '${agentName}'...`);
     try {
-        // The Julia agent service is expected to have an endpoint like this.
         const response = await axios.post(`${JULIA_AGENT_URL}/api/v1/invoke`, {
             agent: agentName,
             payload: payload
         });
         return response.data;
     } catch (error) {
-        console.error(`Error invoking agent ${agentName}:`, error.message);
+        // --- IMPROVED ERROR LOGGING ---
+        // This will now print the full error object, giving you more details.
+        console.error(`Error invoking agent ${agentName}:`);
+        console.error(error); // Log the entire error object
         return { error: `Failed to invoke agent: ${agentName}. Is the Julia service running?` };
     }
 };
@@ -54,51 +50,45 @@ const invokeAgent = async (agentName, payload) => {
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
 
-    // --- Room Management ---
     socket.on('join-room', (room) => {
         socket.join(room);
         console.log(`User ${socket.id} joined room: ${room}`);
     });
 
-    // --- Code Syncing & Real-time Analysis ---
     socket.on('code-change', async (data) => {
-        // Broadcast the change to other users in the room for collaboration.
         socket.to(data.room).emit('code-update', data.code);
-
-        // Asynchronously invoke the Code Guardian agent for analysis.
         const analysisResult = await invokeAgent('code_guardian', { code: data.code });
-
-        // Send the feedback directly back to the user who made the change.
         if (analysisResult && !analysisResult.error) {
             socket.emit('agent-feedback', analysisResult);
         }
     });
 
-    // --- Agent Invocation for On-Chain Commit ---
     socket.on('commit-milestone', async (data) => {
         console.log('Received commit-milestone event:', data);
-
-        // Call the On-Chain Scribe agent to execute the transaction.
         const result = await invokeAgent('onchain_scribe', {
             walletAddress: data.walletAddress,
             codeHash: data.codeHash
         });
 
         if (result && !result.error) {
-            // Notify the entire room that a milestone was successfully committed.
             io.to(data.room).emit('milestone-committed', {
                 user: data.walletAddress,
                 hash: data.codeHash,
-                // The agent should return the transaction ID upon success.
                 transactionId: result.transactionId
             });
         } else {
-            // If the agent call fails, notify the original user.
             socket.emit('commit-error', { message: result.error || 'An unknown error occurred.' });
         }
     });
 
-    // --- Disconnect Handling ---
+    // Listener for the Task Master agent
+    socket.on('invoke-task-master', async (data) => {
+        const result = await invokeAgent('task_master', { question: data.question });
+        if (result && !result.error) {
+            socket.emit('task-master-response', result);
+        }
+    });
+
     socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.id}`);
     });
