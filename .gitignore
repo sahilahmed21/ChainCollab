@@ -94,3 +94,5 @@ storage.rules
 # pnpm-lock.yaml
 
 backend/test-ledger/
+
+test-ledger/
